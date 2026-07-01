@@ -477,6 +477,7 @@ jobs:
 
       # ── BBRv3 (FatalCoder524 method — patch from WildKernels/kernel_patches) ──
       - name: 应用 BBRv3 补丁 (WildKernels)
+        if: github.event.inputs.bbr_enable != 'false'
         working-directory: kernel_workspace
         run: |
           echo "::group::Apply BBRv3 patches"
@@ -598,7 +599,11 @@ jobs:
         working-directory: kernel_workspace
         run: |
           echo "正在克隆WildKernels补丁仓库..."
-          git clone --depth=1 https://github.com/TheWildJames/kernel_patches.git wildkernels_patches
+          if [ ! -d "wildkernels_patches" ]; then
+            git clone --depth=1 https://github.com/TheWildJames/kernel_patches.git wildkernels_patches
+          else
+            echo "wildkernels_patches 仓库已存在，跳过克隆。"
+          fi
           cd common
           echo "正在应用WildKernels优化补丁..."
           PATCHES_DIR="../wildkernels_patches/common"
