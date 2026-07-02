@@ -110,6 +110,11 @@ on:
         required: true
         type: boolean
         default: 'false'
+      bore_enable:
+        description: '是否启用 BORE 调度器 (Burst-Oriented Response Enhancer, 替代EEVDF, 默认关闭)'
+        required: true
+        type: boolean
+        default: 'false'
 
 jobs:
   build:
@@ -475,6 +480,16 @@ jobs:
             fi
           fi
 
+      - name: 应用 BORE 调度器补丁
+        if: inputs.bore_enable
+        working-directory: kernel_workspace/common
+        run: |
+          echo "CONFIG_SCHED_BORE=y" >> arch/arm64/configs/gki_defconfig
+          BORE_URL="https://github.com/palazik/actions_oplus_sm8750/raw/refs/heads/master/patches/bore.patch"
+          wget -qO /tmp/bore.patch "$BORE_URL"
+          patch -p1 -F 3 < /tmp/bore.patch
+          echo "✅ BORE scheduler applied"
+
       # ── BBRv3 (FatalCoder524 method — patch from WildKernels/kernel_patches) ──
       - name: 应用 BBRv3 补丁 (WildKernels)
         if: github.event.inputs.bbr_enable != 'false'
@@ -835,6 +850,7 @@ jobs:
           echo "Oryon CPU Opt: ${{ github.event.inputs.cpu_opt }}" >> ./ak3.log
           echo "Unicode Fix: ${{ github.event.inputs.unicode_fix }}" >> ./ak3.log
           echo "Mem/Sched Patches: ${{ github.event.inputs.mem_opt_patches }}" >> ./ak3.log
+          echo "BORE Scheduler: ${{ github.event.inputs.bore_enable }}" >> ./ak3.log
           zip -z ../$AK3_NAME < ./ak3.log
 
       - name: 上传 Ccache 调试日志
@@ -921,6 +937,7 @@ jobs:
           - Oryon CPU优化：${{ github.event.inputs.cpu_opt }}
           - Unicode路径穿越绕过修复：${{ github.event.inputs.unicode_fix }}
           - WildKernels内存/调度优化补丁集：${{ github.event.inputs.mem_opt_patches }}
+          - BORE调度器：${{ github.event.inputs.bore_enable }}
           - ReSukiSU管理器下载：[ReSukiSU_CI](https://github.com/cctv18/ReSukiSU_CI/releases)
           - SukiSU Ultra管理器下载：[SukiSU-Ultra](https://github.com/SukiSU-Ultra/SukiSU-Ultra/releases)
           - KernelSU Next管理器下载：[KernelSU-Next](https://github.com/KernelSU-Next/KernelSU-Next/releases)
