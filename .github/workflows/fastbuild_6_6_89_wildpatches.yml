@@ -481,32 +481,99 @@ jobs:
           fi
 
       - name: 应用 BORE 调度器补丁
-        id: apply_bore
         if: inputs.bore_enable
         working-directory: kernel_workspace/common
         run: |
           echo "CONFIG_SCHED_BORE=y" >> arch/arm64/configs/gki_defconfig
-          BORE_URL="https://github.com/Heisenberg38219/oppo_oplus_realme_sm8750/raw/refs/heads/main/other_patch/bore_cctv18_6.6.89_reference.patch"
+          BORE_URL="https://github.com/palazik/actions_oplus_sm8750/raw/refs/heads/master/patches/bore.patch"
           wget -qO /tmp/bore.patch "$BORE_URL"
+          patch -p1 -F 3 < /tmp/bore.patch || echo "⚠️ BORE patch tuvo hunks rechazados, intentando fix conocido..."
 
-          # Guardamos copia del patch para poder subirlo como artifact si falla
-          cp /tmp/bore.patch "$GITHUB_WORKSPACE/bore.patch.used"
-          if ! patch -p1 -F 3 < /tmp/bore.patch; then
-            echo "❌ BORE patch NO se aplicó limpiamente. Hunks rechazados:"
-            find . -name '*.rej' -print -exec cat {} \;
-            echo "::error::BORE scheduler patch falló — build detenido para evitar fair.c parcialmente parcheado."
-            exit 1
+          if [ -f kernel/sched/fair.c.rej ]; then
+            echo "── fair.c.rej detectado, aplicando fix conocido (750000ULL vs 700000ULL) ──"
+            if grep -q 'unsigned int sysctl_sched_base_slice\s*=\s*750000ULL;' kernel/sched/fair.c; then
+              python3 - << 'PYEOF'
+import re
+
+path = "kernel/sched/fair.c"
+with open(path) as f:
+    content = f.read()
+
+old_scaling_block = '''/*
+ * The initial- and re-scaling of tunables is configurable
+ *
+ * Options are:
+ *
+ *   SCHED_TUNABLESCALING_NONE - unscaled, always *1
+ *   SCHED_TUNABLESCALING_LOG - scaled logarithmical, *1+ilog(ncpus)
+ *   SCHED_TUNABLESCALING_LINEAR - scaled linear, *ncpus
+ *
+ * (default SCHED_TUNABLESCALING_LOG = *(1+ilog(ncpus))
+ */
+unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_LOG;
+
+/*
+ * Minimal preemption granularity for CPU-bound tasks:
+ *
+ * (default: 0.75 msec * (1 + ilog(ncpus)), units: nanoseconds)
+ */
+unsigned int sysctl_sched_base_slice\t\t\t= 750000ULL;
+EXPORT_SYMBOL_GPL(sysctl_sched_base_slice);
+static unsigned int normalized_sysctl_sched_base_slice\t= 750000ULL;'''
+
+new_scaling_block = '''/*
+ * The initial- and re-scaling of tunables is configurable
+ *
+ * Options are:
+ *
+ *   SCHED_TUNABLESCALING_NONE - unscaled, always *1
+ *   SCHED_TUNABLESCALING_LOG - scaled logarithmical, *1+ilog(ncpus)
+ *   SCHED_TUNABLESCALING_LINEAR - scaled linear, *ncpus
+ *
+ * BORE : default SCHED_TUNABLESCALING_NONE = *1 constant
+ * EEVDF: default SCHED_TUNABLESCALING_LOG  = *(1+ilog(ncpus))
+ */
+#ifdef CONFIG_SCHED_BORE
+unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_NONE;
+#else // !CONFIG_SCHED_BORE
+unsigned int sysctl_sched_tunable_scaling = SCHED_TUNABLESCALING_LOG;
+#endif // CONFIG_SCHED_BORE
+
+/*
+ * Minimal preemption granularity for CPU-bound tasks:
+ *
+ * BORE : base_slice = minimum multiple of nsecs_per_tick >= min_base_slice
+ * (default min_base_slice = 2000000 constant, units: nanoseconds)
+ * EEVDF: default 0.75 msec * (1 + ilog(ncpus)), units: nanoseconds
+ */
+#ifdef CONFIG_SCHED_BORE
+static const unsigned int nsecs_per_tick       = 1000000000ULL / HZ;
+unsigned int sysctl_sched_min_base_slice       = CONFIG_MIN_BASE_SLICE_NS;
+__read_mostly uint sysctl_sched_base_slice     = nsecs_per_tick;
+#else // !CONFIG_SCHED_BORE
+unsigned int sysctl_sched_base_slice\t\t\t= 750000ULL;
+static unsigned int normalized_sysctl_sched_base_slice\t= 750000ULL;
+#endif // CONFIG_SCHED_BORE
+EXPORT_SYMBOL_GPL(sysctl_sched_base_slice);'''
+
+if old_scaling_block not in content:
+    print("❌ No se encontró el bloque esperado (750000ULL) — el archivo cambió de nuevo, revisar a mano.")
+    raise SystemExit(1)
+
+content = content.replace(old_scaling_block, new_scaling_block, 1)
+with open(path, "w") as f:
+    f.write(content)
+print("✅ Fix aplicado a kernel/sched/fair.c (750000ULL preservado, envuelto en #ifdef CONFIG_SCHED_BORE)")
+PYEOF
+              rm -f kernel/sched/fair.c.rej kernel/sched/fair.c.orig
+            else
+              echo "❌ El bloque esperado (750000ULL) no está donde se esperaba — subir fair.c actualizado para revisar."
+              cat kernel/sched/fair.c.rej
+              exit 1
+            fi
           fi
-          echo "✅ BORE scheduler applied"
 
-      - name: 上传 hunks rechazados de BORE (solo si falló)
-        if: always() && steps.apply_bore.outcome == 'failure'
-        uses: actions/upload-artifact@v7
-        with:
-          name: bore-patch-rejects
-          path: |
-            kernel_workspace/common/**/*.rej
-            bore.patch.used
+          echo "✅ BORE scheduler applied"
 
       # ── BBRv3 (FatalCoder524 method — patch from WildKernels/kernel_patches) ──
       - name: 应用 BBRv3 补丁 (WildKernels)
