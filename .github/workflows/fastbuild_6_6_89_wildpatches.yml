@@ -486,8 +486,9 @@ jobs:
         working-directory: kernel_workspace/common
         run: |
           echo "CONFIG_SCHED_BORE=y" >> arch/arm64/configs/gki_defconfig
-          BORE_URL="https://github.com/palazik/actions_oplus_sm8750/raw/refs/heads/master/patches/bore.patch"
+          BORE_URL="https://github.com/Heisenberg38219/oppo_oplus_realme_sm8750/raw/refs/heads/main/other_patch/bore_cctv18_6.6.89_reference.patch"
           wget -qO /tmp/bore.patch "$BORE_URL"
+
           # Guardamos copia del patch para poder subirlo como artifact si falla
           cp /tmp/bore.patch "$GITHUB_WORKSPACE/bore.patch.used"
           if ! patch -p1 -F 3 < /tmp/bore.patch; then
