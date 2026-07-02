@@ -481,14 +481,31 @@ jobs:
           fi
 
       - name: 应用 BORE 调度器补丁
+        id: apply_bore
         if: inputs.bore_enable
         working-directory: kernel_workspace/common
         run: |
           echo "CONFIG_SCHED_BORE=y" >> arch/arm64/configs/gki_defconfig
           BORE_URL="https://github.com/palazik/actions_oplus_sm8750/raw/refs/heads/master/patches/bore.patch"
           wget -qO /tmp/bore.patch "$BORE_URL"
-          patch -p1 -F 3 < /tmp/bore.patch
+          # Guardamos copia del patch para poder subirlo como artifact si falla
+          cp /tmp/bore.patch "$GITHUB_WORKSPACE/bore.patch.used"
+          if ! patch -p1 -F 3 < /tmp/bore.patch; then
+            echo "❌ BORE patch NO se aplicó limpiamente. Hunks rechazados:"
+            find . -name '*.rej' -print -exec cat {} \;
+            echo "::error::BORE scheduler patch falló — build detenido para evitar fair.c parcialmente parcheado."
+            exit 1
+          fi
           echo "✅ BORE scheduler applied"
+
+      - name: 上传 hunks rechazados de BORE (solo si falló)
+        if: always() && steps.apply_bore.outcome == 'failure'
+        uses: actions/upload-artifact@v7
+        with:
+          name: bore-patch-rejects
+          path: |
+            kernel_workspace/common/**/*.rej
+            bore.patch.used
 
       # ── BBRv3 (FatalCoder524 method — patch from WildKernels/kernel_patches) ──
       - name: 应用 BBRv3 补丁 (WildKernels)
