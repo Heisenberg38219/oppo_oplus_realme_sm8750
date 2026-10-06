@@ -54,7 +54,9 @@
 - 原版KernelSU: [tiann/KernelSU](https://github.com/tiann/KernelSU)
 - 内核防格基带保护模块：[vc-teahouse/Baseband-guard](https://github.com/vc-teahouse/Baseband-guard)
 - GKI 内核构建脚本：(待定)
-- ~~本地化内核构建脚本（已失效）：[Suxiaoqinx/kernel_manifest_OnePlus_Sukisu_Ultra](https://github.com/Suxiaoqinx/kernel_manifest_OnePlus_Sukisu_Ultra)~~
+- Burst-Oriented Response Enhancer Scheduler: [firelzdr](https://github.com/firelzrd/bore-scheduler) 
+- Burst-Oriented Response Enhancer Scheduler adaption to SM8750: [brokestar233](https://github.com/brokestar233/android_kernel_common_oneplus_sm8750)
+- Wakelock Boeffla Blocker: [epicmann24](https://github.com/epicmann24/android_kernel_common_oneplus_sm8750)
 
 <!-- 这是一个访客统计，用来看看我的项目主页有多少人访问过 -->
 <div align="center">
